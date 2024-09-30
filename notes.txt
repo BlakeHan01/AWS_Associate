@@ -1,0 +1,304 @@
+General:
+Region w/ AZs (ap-southeast-2a, 2b, 2c)
+Each AZ has 1 or more data centers connected w/ high bandwidth, low latency network
+
+IAM:
+Can be attached to user or user group
+Credentials Report (account level), Access Advisor (user-level)
+IAM user policy, IAM AWS service Roles
+
+Security:
+S3 encrypt objects
+SSE w/ S3-Managed Key (SSE-S3), or w/ KMS keys stored in AWS KMS, or w/ SSE-C (customer provided keys)
+Client side encryption
+SSE S3 (AES-256, default)
+KMS API has a quota, calling decrypt counts towards quota
+SSE-C (encryption key in every HTTPS header for every HTTPS request) 
+Client Side: User send encrypted data w/ library like AWS S3 Client-Side encryption library
+Use bucket policy to enforce non-SS3-S3 encryption, because bucket policy evaluated before default encryption.
+CORS: Preflight request -> response (w/ HTTP methods) -> actual request
+
+Temp Access:
+S3 Pre-Signed URL
+
+
+Lock
+S3 Glacier Vault Lock (Vault Lock Policy)
+S3 Object Lock (must have versioning) Compliance(no user can delete) mode, Governance(some user can modify) mode w/retention period; Legal Hold(indefinite)
+
+
+
+Resource based policy
+Amazon S3 buckets, Amazon SQS/SNS queues, VPC endpoints, AWS Key Management Service encryption keys, and Amazon DynamoDB tables and streams.
+
+
+S3
+Buckets (globally unique name, created in a region)
+Objects (w/ key of prefix (path) + object name), 5TB, Multi-upload for > 5GB
+Versioning can be enabled at bucket level. Prev versions are marked w/ delete markers instead of actually being deleted.
+Bucket policy: for public or cross/account access.
+Replication (must have versioning): CRR, and SRR. Batch/On-going. Cross-account.
+Access Points (ie. grant R/W to /fiance prefix, so more fine grained control than bucket policy. Also no need to write complex bucket policy). 
+
+S3 Storage classes
+Same durability, 11 9’s
+S3 Standard - General Purpose, IA, One-Zone IA
+S3 Glacier, Instant Retrieval (min 90 days, ms retrieval). Flexible retrieval(min 90 days,mins - hours), Deep Archive(min 180 days, standard 12 hours, bulk 48 hours)
+Intelligent tiering
+Lifecycle rules (transition & expiration actions applied on prefix/tags)
+Storage class analysis (smart analyze when to transition objects)
+Requester Pays: Requester(auth w/ aws) pays $ for request and data download.
+S3 Event Notification: seconds - minutes, each event has one consumer.
+S3 Event -> Event bridge - (rules) -> over 18 AWS services
+
+S3 Performance
+3500 WRITE, 5500 READ per prefix. Unlimited number of prefixes
+S3 SELECT (server side filtering)
+S3 Batch (ex. Bulk un/encrypt objs.) 
+S3 Byte Range fetch
+Storage Lens (Free w/ 28 metrics. Paid w/ prefix metrics, cloudwatch metrics, etc)
+
+Edge Location:
+S3 Transfer acceleration (src. s3 -> edge - (private network) -> dest. s3)
+
+
+
+
+
+
+ML
+Rekognition
+Transcribe, Polly (Lexicon & SSML)
+Translate
+Lex (Alexa) & Connect -> Bot
+Comprehend (NLP: find insights, NER, tokenization, etc)
+Kendra (ML search engine)
+Personalize (recommendation, customized personalized API)
+Textract (image -> text)
+
+
+EC2
+Bootstrap: User Data
+Instance Types: GP, Compute, Memory, or Storage Optimized
+Ports: SSH 22, HTTP 80, HTTPS 443, FTP 21
+Instance Purchase options (On Demand, Reserved Instances(good for databases, can be regional or zonal), Savings Plan(lock to a instance family and region, commit to $/hour usage), Spot Instances(lose if max price < spot price), dedicated hosts (use own software licenses), Dedicated Instances(no shared tenancy. So instead of multiple VMs on the server, you get entire server to you)
+EC2 Capacity Reservation (ie. run EMR for a set amount of hour, might run out of the instance type you want, so reserve for the on-demand)
+Spot Fleets: Meet target capacity w/ price constraints. Can choose lowest price instances for us. 
+
+EC2 Associate
+Private IP connect to WWW w/ NAT and internet gateway proxy
+Elastic IPs (When Ec2 stop and start, can have diff public IP) Overall don’t use. Use DNS w/ random public IP or just use ALB 
+Placement Groups
+Cluster: Same AZ, likely same rack (Low latency, high throughput)
+Spread: Multiple AZ, max 7 instances per AZ (Critical)
+Partition: Max 7 partitions per AZ (HDFS, Kafka, etc)
+ENI
+Has public IPv4, private IPv4 w/ a Elastic IP
+In a specific AZ
+EC2 Hibernate (RAM preserved in encrypted root EBS volume, max 60 days)
+EC2 Instance Storage
+EBS (network drive, can only connect to EC2 in same AZ)
+EBS Snapshot (For cross-AZ), Snapshot Archive(24-72 hours to restore), Recycle Bin(Recover after delete), Fast Snapshot REstore (no latency to restore, $$$)
+AMI (customized entire EC2 instance w/ EBS
+EC2 instance store (physical disk, but ephemeral if stopped)
+EBS volume types (io1/io2 Block Express(supports EBS mutli-attach in same AZ) > gp2(linked volume and iops)/gp3 > st1(Throughput optimized HDD) > sc1(cold HDD)(less frequently accessed))
+Boot volume (io1/io2 or gp2/gp3)
+EFS (Managed Network File System), multi-attach on multi-AZ (ONLY for LINUX), pay per use
+Performance Modes: GP, Max I/O
+Throughput Mode: Bursting, Provisioned, elastic
+Storage tiers and lifecycle policy for cost savings
+
+Load Balancer
+Health check at target group level
+ALB (load balance target groups cross machine, and containers on same machine, supports redirect, redirect to dynamic port in ECS)
+Target groups: EC2, ECS, private IP, Lambda functions
+App servers see client IP, Port as extra headers
+NLB
+Forward TCP UDP 100ms vs 400ms w/ ALB
+One static IP per AZ, can attach Elastic IP for whitelisting IPs
+Target groups: EC2, private IP, ALB
+GLB (deploy and manage 3rd party network virtual appliances -> redirects to application, use GENEVE 6081 port)
+Sticky session w/ ALB, NLB but can cause network imbalance
+Cross Zone load balance (ALB default, NLB pay)
+SSL Server Name Indication (user indicate hostname, SNI retrieves correct certificate)
+Connection draining (complete established in-flight requests for 300 seconds by default)
+ASG w/ cloudwatch alarms.
+ASG target tracking scaling(stay at 40% cpu), simple/step scaling(based on alarm, add/remove units), scheduled scaling. Cooldown 300 seconds to allow metrics to stabilize.
+
+RDS, Aurora & ElastiCache
+RDS
+Multi AZ (same region) under same DNS name 
+Single AZ -> Multi AZ zero downtime.
+Auto scale, set max storage
+SSH only available on RDS Custom
+Read replica same region no cost, cross region $
+RDS Custom (Oracle, Microsoft SQL) w/ OS and db optimization
+RDS Proxy: reduce failover time, minimize open connections, must access from VPC
+Aurora
+Postgres & MySQL
+Cross Region replication (Async)
+6 copies of data across 3 AZ, up to 15 replicas
+Custom endpoints for subset of Aurora instances (ex: run analytical queries on specific aurora instances)
+Can be serverless
+Aurora Global Database (1 primary(read/write), up to 5 read-only regions, cross region replication lag less than 5 seconds)
+Backup
+Automated backup (daily, 1 - 35 days retention, PIT recovery)
+Manual snapshot (retention forever)
+Restore
+Create backup -> store in S3 -> Restore onto new RDS instance/Aurora cluster.
+Cloning (copy-on-write), useful for test database
+
+ElastiCache
+Great for user session store (low latency, ephemeral, use TTL)
+Redis(persistent, high availability, backup, SortedSet) and Memcache
+IAM + Redis AUTH (password)
+Lazy Loading vs Write Through (update cache when writing into DB)
+
+
+Route 53
+Domain Registar: AWS Route 53, GoDaddy (can use GoDaddy as registar and the AWS DNS service)
+DNS Records type: A, AAAA, CNAME, NS
+A: hostname -> IPv4
+AAAA: hostname -> IPv6
+CNAME: hostname -> hostname (A or AAAA), can’t create for Zone Apex
+NS: Control how traffic is routed in a domain
+Alias: hostname -> AWS hostname (something.amazonaws.com)
+AWS hostname can be a pointer to a dynamically changing IP address
+The targret cannot be EC2
+Zone File: Files w/ DNS records
+Each record has domain name, record type, IPv4 value, routing policy, TTL
+Name Server: Resolve DNS queries (Hosted zone server is a better name)
+Top Level Domain: .com, .io
+Second Level Domain: amazon.com
+100% availability SLA
+Hosted Zones: Stores DNS records (private or public hosted zones)
+TTL: only alias not mandatory
+Route 53 Routing policy
+Controls how DNS name server responds to queries
+Simple (single & multiple values)
+Weighted, latency-based, geolocation(no from North Korea), geoproximity(w/ bias), IP-based routing (w/ CIDR), 
+Route 53 Health checks (15 global health checker check on endpoint)
+Failover w/ health check
+
+Amazon DynamoDB (milliseconds latency)
+serverless nosql
+DAX cluster (read cache, microseconds latency!)
+Vs elasticCache(store aggregation result)
+Individual objects cache, query & scan cache
+Global table (active-active)
+Great for rapidly evolving schema
+
+DocumentDB (MongoDB)
+Neptune (graph, allow streaming)
+Keyspace (Apache Cassandra, CQL, wide column store)
+Amazon QLDB (financial, ledger db, immutable system)
+Timestream (time series database)
+
+Data& Analytics
+Amazon Athena (serverless SQL query S3, columnar compressed data(S3->Glue-(parquet) -> Athena), partition on virtual columns. Federated queries w/ lambda data source connector -> store to S3)
+Redshift cluster: Based on PostgreSQL, OLAP, indexes so faster than Athena, automated snapshot copying across AZs. Large inserts. 
+Redshift spectrum: query data in s3 and not loading w/ REdshift spectrum nodes.
+OpenSearch: succesor of ElasticSearch
+EMR: Elastic MapReduce, Hadoop HDFS + Spark, HBase, Presto, Flink, etc
+Quicksight: Serverless ML BI, in-mem computation using SPICE, define Users and Groups in QS -> share dashboard with them
+AWS Glue: Serverlss ETL, Glue Data Catalog(similar to Hive Metastore)
+Glue services: Glue studio, Glue Databrew (pre-built ETL), Glue Job Bookmarks (tracks src, tgt, transormation so when new partitions load in ETL, prevent reprocessing), 
+AWS Lake Formation: Built on top of AWS Glue
+Kinesis Data Analytics: From Kinesis firehose/data stream -> analytics -> stream/firehose -> …
+
+
+
+Cognito
+User Pool: Serverless database of users for web & mobile
+Identity Pools: Temp AWS credentials -> user access AWS directly or through API gateway. User sorce can be 3rd party or CUP. 
+12 mil subscriptions per topic, 100000 topics.
+
+SNS: Real time nofication, fan-out with SQS, push based. 
+Example: S3 event rule only one for a prefix + event type like create object. So use SNS to fanout
+Message filtering in JSON so a subscription can receive filtered messages.
+SQS: Decouple applications, max storage of 14 days, pull based. <10ms latency, 256kb per message, unlimited throughput, unlimited # messages in queue.
+VisibilityTimeout. If too high, EC2 crash for that message takes long time to reprocess. If too low, then potential duplicates.
+Long polling, open less contentions. WaitTimeSeconds.
+FIFO Queue: 300 msg/s w/o batching, 3000 w/ batching
+Group ID in FIFO (like Kinesis partition key)
+Kinesis: 
+Producer, Consumer
+A year retention, much longer than SNS, SQS
+Immutability of data when pushed in Kinesis
+
+ECS, EKS, Fargate, ECR.
+ECS Task == Docker container
+EC2 Launch Type must run ECS agent, Farget Launch Type
+EC2 Instance Profile for EC2. EC2 has multiple ECS Task Role, each w/ task definition
+Multi-AZ shared storage for container: Fargate + EFS
+ECS Cluster Capacity Provider: Based on ECS Task, add more EC2
+
+
+VPC
+NAT Gatway: Need Elastic IP for IP translation from private EC2 private Ip -> elastic IP. Elastic IP since it’s not ephemeral. HA w/ multiple NAT in multiple AZs
+NACL: subnet level, stateless. Ephemeral ports(client EC2 connection) must be allowed for both inbound and outbound since NACL is stateless.
+VPC endpoint: connect using private AWS network. (Interface and Gateway Endpoint(DynamoDB and S3))
+Site-to-site VPN: need virtual private gateway and customer gateway
+VPN cloudhub: fanout to multiple customer networks
+DC: EC2 -> aws network -> AWS DC endpoint -> Customer
+DCG: Multiple VPCs -> customer network
+Transit gatway: allows VPCs connect to site-to-site vpn or DCG -> customer
+Egress-only internet gateway: for ipv6 (NAT gateway)
+
+Security:
+KMS is for encryption/decryption. SSM is for storing non-sensitive or secrets for smaller needs.Secrets Manager is for storing sensitive secrets w/ features like auto rotation.
+KMS key policy: Default gives root user access, custom KMS key policy defines users and roles that can access (useful for cross account)
+Multi-region key w/ DynamoDB GlobalTables or Aurora Global. For S3, replication w/ multi-region KMS is still treated as independentn keys.
+SSM Parameter Store: Stores in path the configs and secrets, with TTL
+AWS Secrets Managers: Store secrets w/ secrets rotation, RDS integration.
+AWS Ceritificate Manager: Manages SSL certs, automate renewal
+ACM w/ API Gateway. For edge-optimized, TLS needs to be in us-east-1
+
+
+Cloudfront: Web app deliver to the edge. Protect DDos like SYN floods, UDP reflection, etc
+Global Accelerator: Cloudfront but for dynamic. User -(TCP) -> Global Accelerator, drops TCP to establish connection with user. New TCP -> application server w/ private network.
+Amazon GuardDuty: CryptoCurrency attacks protection
+Amazon Inspector: EC2 (SSM agent), Containers, Lambda functions security assessment
+AWS Macie: ML to alert you to sentitive data
+
+AWS Organizations:
+Management account + user accounts
+MU has all accesses. 
+Service Control Policies: Must have explicit ALLOW from root to the Organization Unit the current account is in to be allowed.
+AWS Directory Services:
+Windows AD is a centralized directory-based identity management system
+AWS managed Microsoft AD, AWS & On-prem AD
+AD Connector, users managed on on-prem AD
+Simple AD, no on-prem
+AWS Control Tower: for multi-account AWS environment setup and governance using SCP (preventative guardrail) and config (detective guardrail)
+
+Monitoring, Audit and Performance:
+Cloudwatch:
+Metrics: Under Namespace, like AWS/RDS. Each metric has up to 30 dimensions. 
+Logs: Log stream, Log group, Cloudwatch Log Insights (query). 
+EC2 Unified Agent(also for on-prem servers…) w/ additional metrics > Logs Agent 
+Cloudwatch Logs metrics filter -> alarm
+Alarm:
+State (Ok, Insufficient Data, Alarm)
+Target: stop ec2, trigger asg, send to sns -> anything. ..
+
+
+Example Architecture:
+
+Serverless:
+Mobile app: REST API layer
+(read) user -> Cognito -> API gateway(cache here)  -> lambda -> dynamoDB (use DAX read cache if lots of static data) or -> S3(large static files like videos, logs) 
+
+MyBlog.com (global)
+user -> cloudfront 
+Welcome Email:
+user -> API gateway -> lambda -> dynamoDB(DAX for read cahce, and global table) -> Dynamo Stream -> Lambda -> SES
+Thumbnail:
+user -> S3(Origin Access Control) -> lambda -> S3 (thumbnail)
+
+Software update offloading
+Cloudfront: Cache static software update files at the edge. Cloudfront is serverless, save EC2 ASG.
+
+Big Data Ingestion Pipeline: 
+
+
