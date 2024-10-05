@@ -3,15 +3,16 @@ Region w/ AZs (ap-southeast-2a, 2b, 2c)
 Each AZ has 1 or more data centers connected w/ high bandwidth, low latency network
 
 IAM:
-Can be attached to user or user group
-Credentials Report (account level), Access Advisor (user-level)
-IAM user policy, IAM AWS service Roles
+For user: Identity based policies. Attached directly to users or groups. 
+A user can be in multiple groups
+Roles: For services. Users can also assume roles, but their previous permissions get repalced when assuming role.(cross-acouint access, temporary elevated permissions)
+Trust policy: IAM -> Roles -> Click on a Role -> Trust relationships -> Like allow ec2 to assume Role, this role has a IAM policy attached defining the permissions (not specific to a service).
 
 Security:
 S3 encrypt objects
 SSE w/ S3-Managed Key (SSE-S3), or w/ KMS keys stored in AWS KMS, or w/ SSE-C (customer provided keys)
 Client side encryption
-SSE S3 (AES-256, default)
+SSE S3 (AES-256, default for all s3 buckets created)
 KMS API has a quota, calling decrypt counts towards quota
 SSE-C (encryption key in every HTTPS header for every HTTPS request) 
 Client Side: User send encrypted data w/ library like AWS S3 Client-Side encryption library
@@ -34,11 +35,12 @@ Amazon S3 buckets, Amazon SQS/SNS queues, VPC endpoints, AWS Key Management Serv
 
 S3
 Buckets (globally unique name, created in a region)
-Objects (w/ key of prefix (path) + object name), 5TB, Multi-upload for > 5GB
+Objects (w/ key of prefix (path) + object name), 5TB, Multi-upload for > 5GB 100MB
 Versioning can be enabled at bucket level. Prev versions are marked w/ delete markers instead of actually being deleted.
 Bucket policy: for public or cross/account access.
-Replication (must have versioning): CRR, and SRR. Batch/On-going. Cross-account.
+Replication (must have versioning): CRR(in 15 mins), and SRR. Batch/On-going. Cross-account.
 Access Points (ie. grant R/W to /fiance prefix, so more fine grained control than bucket policy. Also no need to write complex bucket policy). 
+Object/Bucket ACL: Controls bucket and object access for specific users or accounts.
 
 S3 Storage classes
 Same durability, 11 9’s
@@ -48,7 +50,7 @@ Intelligent tiering
 Lifecycle rules (transition & expiration actions applied on prefix/tags)
 Storage class analysis (smart analyze when to transition objects)
 Requester Pays: Requester(auth w/ aws) pays $ for request and data download.
-S3 Event Notification: seconds - minutes, each event has one consumer.
+S3 Event Notification(Lambda, SQS, SNS): seconds - minutes, each event has one consumer.
 S3 Event -> Event bridge - (rules) -> over 18 AWS services
 
 S3 Performance
@@ -81,9 +83,10 @@ EC2
 Bootstrap: User Data
 Instance Types: GP, Compute, Memory, or Storage Optimized
 Ports: SSH 22, HTTP 80, HTTPS 443, FTP 21
-Instance Purchase options (On Demand, Reserved Instances(good for databases, can be regional or zonal), Savings Plan(lock to a instance family and region, commit to $/hour usage), Spot Instances(lose if max price < spot price), dedicated hosts (use own software licenses), Dedicated Instances(no shared tenancy. So instead of multiple VMs on the server, you get entire server to you)
+Instance Purchase options (On Demand, Reserved Instances(good for databases, can be regional or zonal, 1 or 3 years), Savings Plan(lock to a instance family and region, commit to $/hour usage, 1 or 3 years), Spot Instances(lose if max price < spot price, for any distributed workload), dedicated hosts (use own software licenses, no shared tenancy, visibility and control over how instance is placed), Dedicated Instances(no shared tenancy. So instead of multiple VMs on the server, you get entire server to you)
 EC2 Capacity Reservation (ie. run EMR for a set amount of hour, might run out of the instance type you want, so reserve for the on-demand)
 Spot Fleets: Meet target capacity w/ price constraints. Can choose lowest price instances for us. 
+Recover Instance: Identity to original instance, in-memory data is lost as well as instance store. But retains instance metadata, public/private/elastic IP. 
 
 EC2 Associate
 Private IP connect to WWW w/ NAT and internet gateway proxy
@@ -101,10 +104,12 @@ EBS (network drive, can only connect to EC2 in same AZ)
 EBS Snapshot (For cross-AZ), Snapshot Archive(24-72 hours to restore), Recycle Bin(Recover after delete), Fast Snapshot REstore (no latency to restore, $$$)
 AMI (customized entire EC2 instance w/ EBS
 EC2 instance store (physical disk, but ephemeral if stopped)
-EBS volume types (io1/io2 Block Express(supports EBS mutli-attach in same AZ) > gp2(linked volume and iops)/gp3 > st1(Throughput optimized HDD) > sc1(cold HDD)(less frequently accessed))
+EBS volume types (io1/io2 Block Express(supports EBS mutli-attach in same AZ SSD) > gp2(linked volume and iops SSD)/gp3 > st1(Throughput optimized HDD) > sc1(cold HDD)(less frequently accessed))
+EBS Snapshot copying cross region: KMS Key A decrypt (under the hood) -> Send to region b -> immediately encrypt with key b (which is called reencrypt with key B).
+When copying encrypted data, cannot become unencrypted data.
 Boot volume (io1/io2 or gp2/gp3)
-EFS (Managed Network File System), multi-attach on multi-AZ (ONLY for LINUX), pay per use
-Performance Modes: GP, Max I/O
+EBS multi-attach on multi-AZ (ONLY for LINUX), pay per use
+EFS (Managed Network File System, regional service), Performance Modes: GP, Max I/O
 Throughput Mode: Bursting, Provisioned, elastic
 Storage tiers and lifecycle policy for cost savings
 
@@ -120,28 +125,34 @@ Target groups: EC2, private IP, ALB
 GLB (deploy and manage 3rd party network virtual appliances -> redirects to application, use GENEVE 6081 port)
 Sticky session w/ ALB, NLB but can cause network imbalance
 Cross Zone load balance (ALB default, NLB pay)
-SSL Server Name Indication (user indicate hostname, SNI retrieves correct certificate)
+SSL Server Name Indication (user indicate hostname, SNI retrieves correct certificate)f
+SNI can handle ALB w/ multiple domains
+wildcard can handle one domain with multiple subdomains
 Connection draining (complete established in-flight requests for 300 seconds by default)
 ASG w/ cloudwatch alarms.
 ASG target tracking scaling(stay at 40% cpu), simple/step scaling(based on alarm, add/remove units), scheduled scaling. Cooldown 300 seconds to allow metrics to stabilize.
 
 RDS, Aurora & ElastiCache
-RDS
-Multi AZ (same region) under same DNS name 
-Single AZ -> Multi AZ zero downtime.
-Auto scale, set max storage
+RDS (EBS underlying storage)
+Multi AZ (same region) under same DNS name, one is standby, don’t serve read/write.
+Single AZ -> Multi AZ through snapshot copying, no downtime.
+Auto scale, set max storage. Useful for unpredictable workload
 SSH only available on RDS Custom
 Read replica same region no cost, cross region $
 RDS Custom (Oracle, Microsoft SQL) w/ OS and db optimization
 RDS Proxy: reduce failover time, minimize open connections, must access from VPC
+Automated backup can be cross region
 Aurora
 Postgres & MySQL
 Cross Region replication (Async)
-6 copies of data across 3 AZ, up to 15 replicas
+6 copies of data across 3 AZ(different from RDS multi-az, which has a standby), up to 15 replicas
+HA by nature. Needs 4 copies out of 6 for writes, 3 copies out of 6 for reads
 Custom endpoints for subset of Aurora instances (ex: run analytical queries on specific aurora instances)
 Can be serverless
-Aurora Global Database (1 primary(read/write), up to 5 read-only regions, cross region replication lag less than 5 seconds)
-Backup
+Global Aurora
+1. Aurora Global Database (1 primary(read/write), up to 5 read-only regions, cross region replication lag less than 1 seconds, < 1 minute promotiing another region)
+2. Aurora Cross Region Read Replicas
+Backup (for both RDS and Aurora)
 Automated backup (daily, 1 - 35 days retention, PIT recovery)
 Manual snapshot (retention forever)
 Restore
@@ -153,6 +164,7 @@ Great for user session store (low latency, ephemeral, use TTL)
 Redis(persistent, high availability, backup, SortedSet) and Memcache
 IAM + Redis AUTH (password)
 Lazy Loading vs Write Through (update cache when writing into DB)
+Can be used for compute intensive workloads like recommendation systems which is read heavy on cached objects.
 
 
 Route 53
@@ -161,10 +173,12 @@ DNS Records type: A, AAAA, CNAME, NS
 A: hostname -> IPv4
 AAAA: hostname -> IPv6
 CNAME: hostname -> hostname (A or AAAA), can’t create for Zone Apex
+Cost money, can redirect to any hostname
 NS: Control how traffic is routed in a domain
-Alias: hostname -> AWS hostname (something.amazonaws.com)
+Alias: hostname -> AWS hostname (something.amazonaws.com) or 
 AWS hostname can be a pointer to a dynamically changing IP address
 The targret cannot be EC2
+Can redirect only tho S3, CloudFront, or another record in same Route 53 hosted zones (when you purhcase a domain, you create a hosted zone)
 Zone File: Files w/ DNS records
 Each record has domain name, record type, IPv4 value, routing policy, TTL
 Name Server: Resolve DNS queries (Hosted zone server is a better name)
@@ -185,11 +199,11 @@ serverless nosql
 DAX cluster (read cache, microseconds latency!)
 Vs elasticCache(store aggregation result)
 Individual objects cache, query & scan cache
-Global table (active-active)
+Global table (active-active by default)
 Great for rapidly evolving schema
 
 DocumentDB (MongoDB)
-Neptune (graph, allow streaming)
+Neptune (graph, allow streaming): 
 Keyspace (Apache Cassandra, CQL, wide column store)
 Amazon QLDB (financial, ledger db, immutable system)
 Timestream (time series database)
@@ -206,7 +220,11 @@ Glue services: Glue studio, Glue Databrew (pre-built ETL), Glue Job Bookmarks (t
 AWS Lake Formation: Built on top of AWS Glue
 Kinesis Data Analytics: From Kinesis firehose/data stream -> analytics -> stream/firehose -> …
 
-
+Serverless:
+Lambda:
+Limit 10GB, 15 mins. Lambda SnapStart 10x performance, function invoked from pre-initialized state.
+How SnapStart works: When publish new Lambda version, snapshot of memory, disk sptate of init function cached for low latency access.
+1000 concurency execution
 
 Cognito
 User Pool: Serverless database of users for web & mobile
@@ -220,12 +238,14 @@ SQS: Decouple applications, max storage of 14 days, pull based. <10ms latency, 2
 VisibilityTimeout. If too high, EC2 crash for that message takes long time to reprocess. If too low, then potential duplicates.
 Long polling, open less contentions. WaitTimeSeconds.
 FIFO Queue: 300 msg/s w/o batching, 3000 w/ batching
-Group ID in FIFO (like Kinesis partition key)
+Group ID in FIFO (like Kinesis partition key) scales infinitely, like the rest of sqs
+Delay queue, default 0 seconds, max 15 minutes. 
 Kinesis: 
 Producer, Consumer
 A year retention, much longer than SNS, SQS
 Immutability of data when pushed in Kinesis
 
+Containers:
 ECS, EKS, Fargate, ECR.
 ECS Task == Docker container
 EC2 Launch Type must run ECS agent, Farget Launch Type
@@ -233,7 +253,40 @@ EC2 Instance Profile for EC2. EC2 has multiple ECS Task Role, each w/ task defin
 Multi-AZ shared storage for container: Fargate + EFS
 ECS Cluster Capacity Provider: Based on ECS Task, add more EC2
 
+Extra Storage:
+Snowcone: 8-14TB
+Snowball Edge: 80-200 TB, up to PB migration
+Edge Compute
+Edge Storage
+Edge computing: Used where there’s limited network
+FSx: high performance file systems
+Fsx for windows: SMB and Windows NTFS. Can be used for Linux EC2 instances. Supports Microsoft DFS namespace. Can be used on-prem.
+Amazon Fsx for Luster: Linux cluster, HPC. Read S3 as a file system and write back to S3. Can be used on–premise. Scratch and persistent file system.
+FSx for NetApp ONTAP: Point-in-time instantaneous cloning
+FSx for OpenZFS: pit instant cloning
 
+AWS Storage Gateway: Gateway between on-prem and cloud. 
+Main Use Cases: Disaster recovery, backup & restore, on-premises cache & low-latency files access, tiered storage
+Gateway caches frequently accessed data.
+EFS: For NFS file system
+FIle Gateway: S3 (stores to S3), FSx(stores to AWS windows Fsx Server)
+S3 File Gateway: Use Lifecycle to transition to S3 glacier. NFS or SMB.
+FSx File Gateway: SMB, NTFS, AD
+Volumn Gateway: iSCSI, stores to S3, and snapshot to EBS volumns for on-prem backup.
+Cached volumnes: low latency access to most recent data
+Tape Gateway: iSCSI with tape for backup.
+Use hardware applicance if you don’t want to have virtualization on-prem.
+
+
+AWS Transfer Family: For S3 or EFS using FTP
+Can use exisiting authentication systems
+AWS DataSync: Scheduled Move large amount of data. If on-prem to cloud, need agent
+File permissions and metadata preserved.
+Sync to S3, EFS, AWS FSx
+
+DMS: 
+source: rds, s3, documentdb, dynamodb
+target: rds, dynamodb, redshift, documentdb
 VPC
 NAT Gatway: Need Elastic IP for IP translation from private EC2 private Ip -> elastic IP. Elastic IP since it’s not ephemeral. HA w/ multiple NAT in multiple AZs
 NACL: subnet level, stateless. Ephemeral ports(client EC2 connection) must be allowed for both inbound and outbound since NACL is stateless.
@@ -242,9 +295,13 @@ Site-to-site VPN: need virtual private gateway and customer gateway
 VPN cloudhub: fanout to multiple customer networks
 DC: EC2 -> aws network -> AWS DC endpoint -> Customer
 DCG: Multiple VPCs -> customer network
-Transit gatway: allows VPCs connect to site-to-site vpn or DCG -> customer
+Transit gatway: allows VPCs connect to site-to-site vpn or DCG -> customer. IP multicast (one to many receivers). ECMP to increase throughput w/ site-to-site VPN.
+VPC traffic mirroring: Inspect what’s going on in VPC through ENI -> ENI / NLB
 Egress-only internet gateway: for ipv6 (NAT gateway)
-
+NAT Gateway: Highly available within AZ, doesn’t support port forwarding
+Resource Access manager: AWS Transit Gateways, Subnets, AWS License Manager. Facilitates a centrally managed VPC, while using seperate acounts for access control and billing.
+configurations, and Amazon Route 53 Resolver share to any account w/ duplicating.
+Each subnet is automatically associated with a default route table
 Security:
 KMS is for encryption/decryption. SSM is for storing non-sensitive or secrets for smaller needs.Secrets Manager is for storing sensitive secrets w/ features like auto rotation.
 KMS key policy: Default gives root user access, custom KMS key policy defines users and roles that can access (useful for cross account)
@@ -266,7 +323,7 @@ Management account + user accounts
 MU has all accesses. 
 Service Control Policies: Must have explicit ALLOW from root to the Organization Unit the current account is in to be allowed.
 AWS Directory Services:
-Windows AD is a centralized directory-based identity management system
+Windows AD is a centralized directory-based identity management system (like Cognito)
 AWS managed Microsoft AD, AWS & On-prem AD
 AD Connector, users managed on on-prem AD
 Simple AD, no on-prem
@@ -283,6 +340,17 @@ State (Ok, Insufficient Data, Alarm)
 Target: stop ec2, trigger asg, send to sns -> anything. ..
 
 
+Amazon AppFlow: SaaS -> AWS services like S3, Redshift
+Amazon AppRunner: For containerized application
+Amplify: Develop scalable full stack web and mobile application. Ex: Amplify CLI auth add (adds cognito under the hood)
+
+CloudFormation (Infrastructure as code):
+template: Specify the (almost all) aws resources to provision.
+Each resources within stack is tagged with identifier, can automate deletion of templates and recreation on a schedule
+Lots of existing templates on the web
+Service Role: CloudFormation service role. A user can have CloudFormation(updateStack) and  passRole IAM, and CloudFormation service role has full S3 permission, then the user can modify the stack through CloudFormation. 
+StackSet: In single operation allows you to deploy stacks across regions w/ a single CloudFormation template.
+ChangeSet: Edit template -> Deploy to S3 -> call CloudFormation -> View changeset -> execute changeset
 Example Architecture:
 
 Serverless:
@@ -302,3 +370,69 @@ Cloudfront: Cache static software update files at the edge. Cloudfront is server
 Big Data Ingestion Pipeline: 
 
 
+Amazon Global Accelerator is a good fit for non-HTTP use cases, such as gaming (UDP), IoT (MQTT), or Voice over IP, as well as for HTTP use cases that specifically require static IP addresses or deterministic, fast regional failover. 
+
+FROM PRACTICE EXAMS:
+
+TTL: 
+
+COST:
+EC2: On-Demand and Capacity Reservation (on-demand pricing), others much cheaper, spot instance and spot block cheapest
+EBS Snapshot: Fast Snapshot Restore is pricey
+Cross-Zone Load Balancing(Each EC2 receive same traffic): ALB enabled by default, no charges for inter-AZ data. NLB & GLB, pay for inter AZ data. By default cross-zone LB disabled. 
+RDS replication: Same region is free. Cross-region charges.
+S3: Upload is free, S3 accelerator charged only when result in speed increase.
+Hosted Zones (route traffic to the domain and its subdomains). $0.5 per hosted zone per month
+Route 53: Low TTL means more money
+AWS Lambda: Pay for calls and durations
+On-demand: more expensive than provisioned for any aws services
+Athena: $5 per TB data scanned
+Config: No free tier. Pay for configuration item recorded and rule evaluation.
+AWS KMS: AWS Mnanaged key free. customer managed keys $1 per month. Plus pay for API calls to KMS
+AWS Parameter Store: Advanced is not free (w/ parameter policy that can specify TTL)
+AWS Shied Advanced: Protects against EC2, ELB, Cloudfront, Global Accelerator, Route 53. $3000 per month per organization.
+NAT Gateway: Per hour & amount data transfered. Cheaper than NAT instance at large scale.
+NAT Instance: Per hour, EC2 instance type and size + network
+Gateway endpoint: Free, but must be same region, same VPC, no on-premise
+Interface endpoint: $
+Networkiing Costs: 
+Traffic into AWS is free
+Same AZ, free if using private IP
+Cross AZ, $0.01 using private IP, $0.02 using public/elastic IP
+Cross Region, $0.02
+Egress traffic:
+From AWS to outside is not free
+Put application for aggreagtion before sending traffic outside AWS
+Direct Connect in same region as AWS will save money
+S3:
+Ingress free
+S3 -> Internet 0.9
+S3 -> Cloudfront(0) -> Internet 0.8
+S3 cross region replication 0.02 (same for everything else right)
+NAT Gateway vs Gateway VPC endpoint:
+private EC2 -> NAT Gateway (Ipv4) -> Internet Gateway -> internet
+Can be more costly
+private Ec2 -> Gateway VPC endpoint -> S3 (if same region then free) -> internet
+Minimum storage duration for S3:
+Standard: None, IA: 30 days, glacier instant and flexible: 90 days. Deep archive 180 days.
+
+Multi-AZ deployment: for high availability
+Read replica: for scalability
+Multi-Region: for disaster recovery
+Single region key cannot change to multi-region key since it needs to maintain same data residency.
+
+Different account’s same AZ us-east-1a can have different AZ-ids
+RDS heterogeneous: use schema conversion tool + DMS
+What is service-linked roles?
+Microsoft AD vs Ad connector
+Transfer Family: FTP over S3, EFS
+File Gateway: S3 and FSx. For backup or low latency access to cloud from on-prem.
+Datasync: Fast transfer of large amount of data from on-prem to AWS w/ agent, or AWS to AWS.
+
+
+AWS Lambda revisit
+
+
+WAF
+S3 Vault, glacier vault, etc
+Can RDS multi-az be cross-region(no)
